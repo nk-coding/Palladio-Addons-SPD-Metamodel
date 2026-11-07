@@ -97,7 +97,7 @@ main(){
 		log("Placement Constraints: Max Assemblies Per Host "+max_assemblies_per_host.toString());
 												
 		
-		var invariantResourceContainers:Set(ResourceContainer) := Set{};		
+		var invariantResourceContainers:OrderedSet(ResourceContainer) := OrderedSet{};		
 		resourceEnvironment.resourceContainer_ResourceEnvironment->forEach(rc){
 			if(elasticInfrastructureCfg.elements->excludes(rc)){
 				invariantResourceContainers += rc;		

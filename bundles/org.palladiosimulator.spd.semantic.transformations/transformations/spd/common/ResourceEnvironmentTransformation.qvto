@@ -8,18 +8,38 @@ modeltype PCM_RES_ENV uses 'http://palladiosimulator.org/PalladioComponentModel/
 modeltype SPD_SEM uses 'http://palladiosimulator.org/ScalingPolicyDefinitionSemantic/1.0';
 
 
-mapping inout ResourceEnvironment::modifyResourceEnvironment(elasticInfrastructureCfg:ElasticInfrastructureCfg, invariantResourceContainers:Set(ResourceContainer)){
+/**
+* The containers of the environment: the elements of the elastic infrastructure, then the other
+* containers.
+*/
+mapping inout ResourceEnvironment::modifyResourceEnvironment(elasticInfrastructureCfg:ElasticInfrastructureCfg, invariantResourceContainers:OrderedSet(ResourceContainer)){
 	init { 
-		var completeSetOfResourceContainers:Set(ResourceContainer) := Set{};
-		completeSetOfResourceContainers+=elasticInfrastructureCfg.elements;
-		completeSetOfResourceContainers+=invariantResourceContainers;
+		var completeSetOfResourceContainers:OrderedSet(ResourceContainer) := elasticInfrastructureCfg.elements->asOrderedSet();
+		invariantResourceContainers->forEach(rc){
+			if(completeSetOfResourceContainers->excludes(rc)){
+				completeSetOfResourceContainers := completeSetOfResourceContainers->append(rc);
+			};
+		};
 	}
 	resourceContainer_ResourceEnvironment := completeSetOfResourceContainers;
-	linkingResources__ResourceEnvironment.map modifyLinkingResource(completeSetOfResourceContainers);
+	linkingResources__ResourceEnvironment.map modifyLinkingResource(completeSetOfResourceContainers, elasticInfrastructureCfg);
 }
 
-mapping inout LinkingResource::modifyLinkingResource(resourceContainers:Set(ResourceContainer)){
-	connectedResourceContainers_LinkingResource := resourceContainers;
+/**
+* A link keeps its containers that are still in the environment; a link the unit is connected to
+* also connects the new elements of the elastic infrastructure. Links the unit is not on keep their
+* containers. (Before, every link was connected to every container of the environment.)
+*/
+mapping inout LinkingResource::modifyLinkingResource(resourceContainers:OrderedSet(ResourceContainer), elasticInfrastructureCfg:ElasticInfrastructureCfg){
+	init {
+		var connected:OrderedSet(ResourceContainer) := self.connectedResourceContainers_LinkingResource->select(rc | resourceContainers->includes(rc))->asOrderedSet();
+		if(connected->includes(elasticInfrastructureCfg.unit)){
+			elasticInfrastructureCfg.elements->forEach(rc){
+				if(connected->excludes(rc)){
+					connected := connected->append(rc);
+				};
+			};
+		};
+	}
+	connectedResourceContainers_LinkingResource := connected;
 }
-
-

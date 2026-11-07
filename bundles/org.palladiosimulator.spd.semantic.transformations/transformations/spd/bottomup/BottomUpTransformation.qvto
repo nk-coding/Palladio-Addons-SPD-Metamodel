@@ -53,7 +53,7 @@ main() {
 		// *********************
 		// Modify infrastructure
 		// *********************
-		var invariantResourceContainers:Set(ResourceContainer) := Set{};		
+		var invariantResourceContainers:OrderedSet(ResourceContainer) := OrderedSet{};		
 	
 	
 		var elasticInfrastructureCfg : ElasticInfrastructureCfg := cfg.targetCfgs[ElasticInfrastructureCfg]->any(target | target.unit.id = cfg.enactedPolicy.targetGroup.oclAsType(ElasticInfrastructure).unit.id);
