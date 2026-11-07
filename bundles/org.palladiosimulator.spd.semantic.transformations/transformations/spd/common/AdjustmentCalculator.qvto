@@ -65,10 +65,14 @@ helper caseRelativeAdjustmentType(adjustment: RelativeAdjustment, currentSize: I
 	
 	var desiredNumberOfNewResourceContainers:Real := currentSize * percentageGrowthValue/100.0;
 	
+	// A zero change stays zero; otherwise its magnitude is at least minAdjustmentValue, in the
+	// direction of the percentage. (Before, the else branch computed min(x, minAdjustmentValue):
+	// 0 % with a positive minimum gave 0 only by accident and a negative percentage ignored the
+	// minimum.)
 	if(desiredNumberOfNewResourceContainers>0){
 		desiredChange := desiredNumberOfNewResourceContainers.max(minAdjustmentValue);
-	} else {
-		desiredChange := desiredNumberOfNewResourceContainers.min(minAdjustmentValue);
+	} else if(desiredNumberOfNewResourceContainers<0){
+		desiredChange := desiredNumberOfNewResourceContainers.min(-minAdjustmentValue);
 	};
 	return desiredChange;
 }
