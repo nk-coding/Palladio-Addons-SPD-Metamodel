@@ -36,7 +36,7 @@ property max_assemblies_per_host : Integer = 3;
 */
 mapping inout ElasticInfrastructureCfg::transformElasticInfrastructure(enactedPolicy:ScalingPolicy, serviceGroupCfg:TargetGroupCfg, allocation:Allocation, maxAssembliesPerHost:Integer, allServiceAssemblies:Sequence(AssemblyContext)){
 	init{
-		var resourceContainersToAdd:Set(ResourceContainer) := Set{};
+		var resourceContainersToAdd:OrderedSet(ResourceContainer) := OrderedSet{};
 		var resourceContainersToRemove:Set(ResourceContainer) := Set{};
 		
 		assert fatal(serviceGroupCfg.isServicePattern()) with log('The transformation of ElasticInfrastructureCfg expects a service target group');
@@ -57,9 +57,13 @@ mapping inout ElasticInfrastructureCfg::transformElasticInfrastructure(enactedPo
 		*/			
 		if(allocationsOfService->size()=serviceGroupCfg.numberOfElements()){
 			// scale in infrastructure if needed
-			// NOW: Remove all resource containers which have no allocations at the moment. This allows to happen that allocationCtxts are removed initially but not the resource container. 
-			// TODO:: Future: all resource containers that will be empty after the scale in, shall be removed, no rebalancing
-			resourceContainersToRemove := self.elements->select(rc | not allocationsTotal->exists(alloc | alloc.resourceContainer_AllocationContext=rc));
+			// All resource containers that are empty after the scale in are removed in this enactment, no rebalancing.
+			// The allocations that modifyAllocationOnScaleIn removes in this enactment (assemblies of the service's
+			// component that left the group) do not count. (Before, a container was removed only once it had no
+			// allocations at the start of an enactment, i.e. one enactment late.)
+			var leaving:Set(AllocationContext) := allocation.allocationContexts_Allocation->select(alloc | alloc.assemblyContext_AllocationContext.encapsulatedComponent__AssemblyContext = serviceGroupCfg->retrieveUnit()->any(true).encapsulatedComponent__AssemblyContext and serviceGroupAssemblies->excludes(alloc.assemblyContext_AllocationContext));
+			var remaining:Set(AllocationContext) := allocationsTotal - leaving;
+			resourceContainersToRemove := self.elements->select(rc | not remaining->exists(alloc | alloc.resourceContainer_AllocationContext=rc));
 		};
 		
 		if(allocationsOfService->size()<serviceGroupCfg.numberOfElements()){
@@ -93,10 +97,14 @@ mapping inout ElasticInfrastructureCfg::transformElasticInfrastructure(enactedPo
 			};
 		};
 		
-		var union:Set(ResourceContainer) := self.elements->union(resourceContainersToAdd);
-		var intersection:Set(ResourceContainer) := self.elements->intersection(resourceContainersToRemove);
+		// the remaining elements in their order, then the new containers in the order of their creation
+		// (set union and difference made the order follow Java identity hashes)
+		var newElements:OrderedSet(ResourceContainer) := self.elements->reject(rc | resourceContainersToRemove->includes(rc))->asOrderedSet();
+		resourceContainersToAdd->forEach(rc){
+			newElements := newElements->append(rc);
+		};
 	}
-	elements := union - intersection;
+	elements := newElements;
 	enactedPolicies += enactedPolicy;
 }
 
@@ -119,7 +127,8 @@ when {scaling>0;}
 		
 		serviceGroupCfg.retrieveAssemblyElements()->forEach(assembly){
 			if(not self.allocationContexts_Allocation->exists(alloc | alloc.assemblyContext_AllocationContext=assembly)){
-				var resourceContainer:ResourceContainer := elasticInfrastructureCfg.elements->select(rc | self.allocationContexts_Allocation->select(a | a.resourceContainer_AllocationContext=rc)->size()<max_assemblies_per_host)->any(true);
+				// the first element (in model order) with room for another assembly
+				var resourceContainer:ResourceContainer := elasticInfrastructureCfg.elements->select(rc | self.allocationContexts_Allocation->select(a | a.resourceContainer_AllocationContext=rc)->size()<max_assemblies_per_host)->first();
 				// for each assembly there should exist one because of the transformation of the ElasticInfra beforehand
 				allocationCtxtsToAdd += 	Commons_createAllocationContext(assembly,
 												self,

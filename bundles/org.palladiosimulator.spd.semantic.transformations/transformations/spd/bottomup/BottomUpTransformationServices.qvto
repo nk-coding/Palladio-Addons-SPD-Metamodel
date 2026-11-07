@@ -38,7 +38,7 @@ modeltype SPD_SEM uses 'http://palladiosimulator.org/ScalingPolicyDefinitionSema
 */
 mapping inout ServiceGroupCfg::transformServiceGroup(enactedPolicy:ScalingPolicy, elasticInfraCfg:ElasticInfrastructureCfg, sys: System, alloc: Allocation){
 	init{
-		var newAssemblies:Set(AssemblyContext) := Set{};
+		var newAssemblies:OrderedSet(AssemblyContext) := OrderedSet{};
 		var assembliesToPreserve:Set(AssemblyContext) := Set{};
 		var system:System :=  sys;
 		var allocation:Allocation := alloc;
@@ -55,9 +55,11 @@ mapping inout ServiceGroupCfg::transformServiceGroup(enactedPolicy:ScalingPolicy
 	
 	elements += newAssemblies;
 	if(newAssemblies->size()=0 and elasticInfraCfg.elements->size() < self.elements->size()){
-		// subset elements to those for which an allocation points to a resource container that will exist after the transformation
-		elements := allocation.allocationContexts_Allocation->select(allocCtx | elasticInfraCfg.elements->includes(allocCtx.resourceContainer_AllocationContext) 
-		and elements->includes(allocCtx.assemblyContext_AllocationContext)).assemblyContext_AllocationContext;
+		// subset elements to those for which an allocation points to a resource container that will exist after the transformation,
+		// in their order (the allocation contexts are an unordered feature: collecting the elements from them made the order
+		// follow Java hash codes)
+		elements := self.elements->select(assembly | allocation.allocationContexts_Allocation->exists(allocCtx | allocCtx.assemblyContext_AllocationContext = assembly
+		and elasticInfraCfg.elements->includes(allocCtx.resourceContainer_AllocationContext)));
 		
 		alloc.map modifyAllocationOnScaleIn(elements, self.unit);
 		self.loadBalancingAssembly.encapsulatedComponent__AssemblyContext[BasicComponent].map modifyLoadBalancerOnScaleIn(self);
@@ -71,7 +73,7 @@ mapping inout ServiceGroupCfg::transformServiceGroup(enactedPolicy:ScalingPolicy
 
 mapping inout CompetingConsumersGroupCfg::transformCompetingConsumersGroup(enactedPolicy:ScalingPolicy, elasticInfraCfg:ElasticInfrastructureCfg, sys: System, alloc: Allocation){
 	init{
-		var newAssemblies:Set(AssemblyContext) := Set{};
+		var newAssemblies:OrderedSet(AssemblyContext) := OrderedSet{};
 		var assembliesToPreserve:Set(AssemblyContext) := Set{};
 		var system:System :=  sys;
 		var allocation:Allocation := alloc;
@@ -89,9 +91,11 @@ mapping inout CompetingConsumersGroupCfg::transformCompetingConsumersGroup(enact
 	elements += newAssemblies;
  
  	if(newAssemblies->size()=0 and elasticInfraCfg.elements->size() < self.elements->size()){
-		// subset elements to those for which an allocation points to a resource container that will exist after the transformation
-		elements := allocation.allocationContexts_Allocation->select(allocCtx | elasticInfraCfg.elements->includes(allocCtx.resourceContainer_AllocationContext) 
-		and elements->includes(allocCtx.assemblyContext_AllocationContext)).assemblyContext_AllocationContext;
+		// subset elements to those for which an allocation points to a resource container that will exist after the transformation,
+		// in their order (the allocation contexts are an unordered feature: collecting the elements from them made the order
+		// follow Java hash codes)
+		elements := self.elements->select(assembly | allocation.allocationContexts_Allocation->exists(allocCtx | allocCtx.assemblyContext_AllocationContext = assembly
+		and elasticInfraCfg.elements->includes(allocCtx.resourceContainer_AllocationContext)));
 		
 		alloc.map modifyAllocationOnScaleIn(elements, self.unit);
 		system.map modifySystemModelOnScaleIn(self);
